@@ -11,8 +11,8 @@ This README outlines the steps to get the application up and running locally.
 ## 1. Clone the Repository (if not already)
 
 ```bash
-git clone https://github.com/paresh2806/Assignment-Mind300.git
-cd Assignment-Mind300
+git clone https://github.com/kaushalbacancy/Medicare-RAG.git
+cd Medicare-RAG
 ```
 
 ## 2. Create and Activate a Python Virtual Environment
