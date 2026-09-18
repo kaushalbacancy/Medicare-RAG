@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Medicare RAG Assistant</title>
+<style>
+  :root {
+    --bg-1: #0f0c29;
+    --bg-2: #302b63;
+    --bg-3: #24243e;
+    --accent-1: #ff6a95;
+    --accent-2: #7367f0;
+    --accent-3: #00d4ff;
+    --accent-4: #3ddc84;
+    --user-bubble: linear-gradient(135deg, #7367f0, #ff6a95);
+    --bot-bubble: rgba(255, 255, 255, 0.08);
+    --text-light: #f5f5fb;
+    --text-dim: #b8b8d1;
+    --panel: rgba(255, 255, 255, 0.05);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, var(--bg-1), var(--bg-2) 50%, var(--bg-3));
+    background-attachment: fixed;
+    color: var(--text-light);
+    overflow: hidden;
+  }
+
+  #particleCanvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .layout {
+    display: flex;
+    height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ---------- sidebar ---------- */
+  .sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    padding: 24px 18px;
+    background: rgba(255, 255, 255, 0.03);
+    border-right: 1px solid rgba(255, 255, 255, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    backdrop-filter: blur(10px);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent-3), var(--accent-2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.35);
+    animation: iconGlow 3s ease-in-out infinite;
+  }
+
+  @keyframes iconGlow {
+    0%, 100% { box-shadow: 0 0 16px rgba(0, 212, 255, 0.3); }
+    50% { box-shadow: 0 0 28px rgba(255, 106, 149, 0.45); }
+  }
+
+  .brand-text h1 {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent-3), var(--accent-1));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .brand-text p {
+    margin: 2px 0 0;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    padding: 8px 12px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-4);
+    box-shadow: 0 0 8px var(--accent-4);
+    animation: pulse 1.8s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+
+  .stats-panel {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .stats-panel h3 {
+    margin: 0;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .stat-row .label { font-size: 0.78rem; color: var(--text-dim); }
+  .stat-row .value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent-3), var(--accent-4));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pipeline-legend {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 16px;
+    flex: 1;
+  }
+  .pipeline-legend h3 {
+    margin: 0 0 12px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    padding: 7px 0;
+  }
+  .legend-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ---------- main chat column ---------- */
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    flex: 1;
+    min-width: 0;
+    position: relative;
+  }
+
+  header {
+    padding: 20px 28px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  header .title-block h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+  header .title-block p {
+    margin: 3px 0 0;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+
+  .clear-btn {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text-dim);
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .clear-btn:hover { background: rgba(255,255,255,0.12); color: var(--text-light); }
+
+  .chat-window {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 28px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    scroll-behavior: smooth;
+  }
+
+  .chat-window::-webkit-scrollbar { width: 6px; }
+  .chat-window::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15);
+    border-radius: 10px;
+  }
+
+  .msg-row {
+    display: flex;
+    gap: 12px;
+    max-width: 100%;
+    animation: riseIn 0.4s cubic-bezier(.2,.8,.2,1);
+  }
+
+  @keyframes riseIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .msg-row.user { flex-direction: row-reverse; }
+
+  .avatar {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    position: relative;
+  }
+
+  .avatar.bot {
+    background: linear-gradient(135deg, var(--accent-3), var(--accent-2));
+  }
+  .avatar.bot.thinking::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 14px;
+    border: 2px solid transparent;
+    border-top-color: var(--accent-3);
+    border-right-color: var(--accent-1);
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .avatar.user {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  }
+
+  .bubble-col { display: flex; flex-direction: column; gap: 8px; max-width: 74%; }
+  .msg-row.user .bubble-col { align-items: flex-end; }
+
+  .bubble {
+    padding: 13px 17px;
+    border-radius: 18px;
+    line-height: 1.5;
+    font-size: 0.94rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    position: relative;
+  }
+
+  .msg-row.bot .bubble {
+    background: var(--bot-bubble);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-top-left-radius: 4px;
+    backdrop-filter: blur(6px);
+  }
+
+  .msg-row.user .bubble {
+    background: var(--user-bubble);
+    border-top-right-radius: 4px;
+    color: white;
+    box-shadow: 0 4px 18px rgba(115, 103, 240, 0.35);
+  }
+
+  .copy-btn {
+    align-self: flex-start;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    cursor: pointer;
+    padding: 2px 4px;
+    opacity: 0.6;
+    transition: opacity 0.2s, color 0.2s;
+  }
+  .copy-btn:hover { opacity: 1; color: var(--accent-3); }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    font-size: 0.72rem;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    color: var(--text-dim);
+    border: 1px solid rgba(255,255,255,0.1);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .chip.confidence-high { color: var(--accent-4); border-color: rgba(61,220,132,0.3); }
+  .chip.confidence-mid { color: #ffcf5c; border-color: rgba(255,207,92,0.3); }
+  .chip.confidence-low { color: #ff6a6a; border-color: rgba(255,106,106,0.3); }
+
+  /* confidence gauge */
+  .gauge {
+    width: 30px;
+    height: 30px;
+  }
+  .gauge circle {
+    fill: none;
+    stroke-width: 3;
+  }
+  .gauge .track { stroke: rgba(255,255,255,0.12); }
+  .gauge .fill {
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    transition: stroke-dashoffset 0.8s ease;
+  }
+
+  /* ---------- pipeline visualizer (replaces plain dots) ---------- */
+  .pipeline-bubble {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 15px 18px;
+    min-width: 230px;
+  }
+  .pipeline-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    opacity: 0.4;
+    transition: opacity 0.3s;
+  }
+  .pipeline-step.active { opacity: 1; color: var(--text-light); }
+  .pipeline-step.done { opacity: 0.75; color: var(--accent-4); }
+
+  .step-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .pipeline-step.active .step-icon {
+    background: linear-gradient(135deg, var(--accent-3), var(--accent-2));
+    animation: stepPulse 1s ease-in-out infinite;
+  }
+  .pipeline-step.done .step-icon {
+    background: rgba(61,220,132,0.15);
+    border: 1px solid rgba(61,220,132,0.4);
+  }
+  @keyframes stepPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(115,103,240,0.5); }
+    50% { box-shadow: 0 0 0 6px rgba(115,103,240,0); }
+  }
+
+  .input-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 28px 24px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .input-bar input {
+    flex: 1;
+    padding: 15px 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.06);
+    color: var(--text-light);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .input-bar input:focus {
+    border-color: var(--accent-2);
+    box-shadow: 0 0 0 3px rgba(115, 103, 240, 0.25);
+  }
+
+  .input-bar input::placeholder { color: var(--text-dim); }
+
+  .send-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--accent-2), var(--accent-1));
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 0 0 0 rgba(255, 106, 149, 0.5);
+    animation: sendGlow 2.4s ease-in-out infinite;
+  }
+
+  @keyframes sendGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 106, 149, 0.35); }
+    50% { box-shadow: 0 0 0 8px rgba(255, 106, 149, 0); }
+  }
+
+  .send-btn:active { transform: scale(0.88); }
+  .send-btn:disabled { opacity: 0.5; cursor: not-allowed; animation: none; }
+
+  .send-btn svg { width: 20px; height: 20px; fill: white; }
+
+  .shake { animation: shake 0.4s; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--text-dim);
+    gap: 8px;
+    padding: 20px;
+  }
+  .empty-state .big-emoji {
+    font-size: 3rem;
+    margin-bottom: 4px;
+    animation: floatEmoji 3s ease-in-out infinite;
+  }
+  @keyframes floatEmoji {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  .empty-state h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    background: linear-gradient(90deg, var(--accent-3), var(--accent-1));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 14px;
+    max-width: 460px;
+  }
+  .suggestion-chip {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--text-light);
+    padding: 9px 15px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  }
+  .suggestion-chip:hover {
+    background: rgba(255,255,255,0.14);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(115,103,240,0.25);
+  }
+
+  @media (max-width: 720px) {
+    .sidebar { display: none; }
+    header { padding: 16px 18px 12px; }
+    .chat-window { padding: 14px 16px 16px; }
+    .input-bar { padding: 12px 16px 18px; }
+    .bubble-col { max-width: 88%; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="particleCanvas"></canvas>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">🩺</div>
+      <div class="brand-text">
+        <h1>Medicare RAG</h1>
+        <p>Hybrid retrieval assistant</p>
+      </div>
+    </div>
+
+    <div class="status-pill"><span class="status-dot"></span>Live &middot; connected to Qdrant</div>
+
+    <div class="stats-panel">
+      <h3>Session Stats</h3>
+      <div class="stat-row"><span class="label">Questions asked</span><span class="value" id="statCount">0</span></div>
+      <div class="stat-row"><span class="label">Avg confidence</span><span class="value" id="statConf">–</span></div>
+      <div class="stat-row"><span class="label">Last response</span><span class="value" id="statTime">–</span></div>
+      <div class="stat-row"><span class="label">Tokens used</span><span class="value" id="statTokens">0</span></div>
+    </div>
+
+    <div class="pipeline-legend">
+      <h3>How it works</h3>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--accent-3)"></span>Dense + sparse embeddings</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--accent-2)"></span>Hybrid search in Qdrant</div>
+      <div class="legend-item"><span class="legend-dot" style="background:var(--accent-1)"></span>Grounded generation via Gemini</div>
+    </div>
+  </aside>
+
+  <div class="app">
+    <header>
+      <div class="title-block">
+        <h2>Ask about your Medicare guide</h2>
+        <p>Answers are grounded in the source PDF, with page citations</p>
+      </div>
+      <button class="clear-btn" id="clearBtn">Clear chat</button>
+    </header>
+
+    <div class="chat-window" id="chatWindow">
+      <div class="empty-state" id="emptyState">
+        <div class="big-emoji">💬</div>
+        <h3>Start a conversation</h3>
+        <div>Ask anything covered in the Medicare guide.</div>
+        <div class="suggestions">
+          <div class="suggestion-chip" data-q="What is the Medicare enrollment period?">Enrollment period?</div>
+          <div class="suggestion-chip" data-q="What does Medicare Part A cover?">What does Part A cover?</div>
+          <div class="suggestion-chip" data-q="How do I switch Medicare Advantage plans?">Switching Advantage plans</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <input type="text" id="questionInput" placeholder="Ask a question about Medicare..." autocomplete="off" />
+      <button class="send-btn" id="sendBtn" aria-label="Send">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  /* ---------------- particle background ---------------- */
+  const canvas = document.getElementById('particleCanvas');
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  const COLORS = ['#ff6a95', '#7367f0', '#00d4ff', '#3ddc84'];
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function initParticles() {
+    const count = Math.min(60, Math.floor((window.innerWidth * window.innerHeight) / 22000));
+    particles = Array.from({ length: count }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.8 + 0.6,
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: (Math.random() - 0.5) * 0.25,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      alpha: Math.random() * 0.5 + 0.2
+    }));
+  }
+  initParticles();
+
+  function animateParticles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+      if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.alpha;
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(animateParticles);
+  }
+  animateParticles();
+
+  /* ---------------- chat logic ---------------- */
+  const chatWindow = document.getElementById('chatWindow');
+  const emptyState = document.getElementById('emptyState');
+  const input = document.getElementById('questionInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  const statCount = document.getElementById('statCount');
+  const statConf = document.getElementById('statConf');
+  const statTime = document.getElementById('statTime');
+  const statTokens = document.getElementById('statTokens');
+
+  let isLoading = false;
+  let session = { count: 0, confSum: 0, tokens: 0 };
+
+  function scrollToBottom() {
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+  }
+
+  function addUserMessage(text) {
+    if (emptyState) emptyState.style.display = 'none';
+    const row = document.createElement('div');
+    row.className = 'msg-row user';
+    row.innerHTML = `
+      <div class="avatar user">🧑</div>
+      <div class="bubble-col"><div class="bubble"></div></div>
+    `;
+    row.querySelector('.bubble').textContent = text;
+    chatWindow.appendChild(row);
+    scrollToBottom();
+  }
+
+  const PIPELINE_STEPS = [
+    { icon: '🔎', label: 'Embedding your question' },
+    { icon: '📊', label: 'Hybrid search in Qdrant' },
+    { icon: '🧠', label: 'Generating grounded answer' }
+  ];
+
+  function addPipelineIndicator() {
+    const row = document.createElement('div');
+    row.className = 'msg-row bot';
+    row.id = 'pipelineRow';
+    row.innerHTML = `
+      <div class="avatar bot thinking">🤖</div>
+      <div class="bubble pipeline-bubble" id="pipelineBubble"></div>
+    `;
+    chatWindow.appendChild(row);
+
+    const bubble = row.querySelector('#pipelineBubble');
+    PIPELINE_STEPS.forEach((s, i) => {
+      const el = document.createElement('div');
+      el.className = 'pipeline-step' + (i === 0 ? ' active' : '');
+      el.dataset.index = i;
+      el.innerHTML = `<span class="step-icon">${s.icon}</span><span>${s.label}</span>`;
+      bubble.appendChild(el);
+    });
+    scrollToBottom();
+
+    let step = 0;
+    const timer = setInterval(() => {
+      const steps = bubble.querySelectorAll('.pipeline-step');
+      if (step < steps.length) {
+        steps[step].classList.remove('active');
+        steps[step].classList.add('done');
+        steps[step].querySelector('.step-icon').textContent = '✓';
+      }
+      step++;
+      if (step < steps.length) {
+        steps[step].classList.add('active');
+      } else {
+        clearInterval(timer);
+      }
+    }, 900);
+
+    return () => clearInterval(timer);
+  }
+
+  function removePipelineIndicator(stopTimer) {
+    if (stopTimer) stopTimer();
+    const el = document.getElementById('pipelineRow');
+    if (el) el.remove();
+  }
+
+  function confidenceClass(score) {
+    if (score >= 0.75) return 'confidence-high';
+    if (score >= 0.4) return 'confidence-mid';
+    return 'confidence-low';
+  }
+
+  function gaugeSvg(score) {
+    const pct = Math.max(0, Math.min(1, score || 0));
+    const r = 12, c = 2 * Math.PI * r;
+    const offset = c * (1 - pct);
+    const color = pct >= 0.75 ? 'var(--accent-4)' : pct >= 0.4 ? '#ffcf5c' : '#ff6a6a';
+    return `
+      <svg class="gauge" viewBox="0 0 30 30">
+        <circle class="track" cx="15" cy="15" r="${r}"></circle>
+        <circle class="fill" cx="15" cy="15" r="${r}" stroke="${color}"
+          stroke-dasharray="${c}" stroke-dashoffset="${offset}"></circle>
+      </svg>
+    `;
+  }
+
+  function updateStats(data, elapsedMs) {
+    session.count += 1;
+    session.confSum += (data.confidence_score || 0);
+    session.tokens += (data.token_count || 0);
+
+    statCount.textContent = session.count;
+    statConf.textContent = Math.round((session.confSum / session.count) * 100) + '%';
+    statTime.textContent = (elapsedMs / 1000).toFixed(1) + 's';
+    statTokens.textContent = session.tokens.toLocaleString();
+  }
+
+  function addBotMessage(data, elapsedMs) {
+    const row = document.createElement('div');
+    row.className = 'msg-row bot';
+
+    const pagesText = (data.source_page && data.source_page.length)
+      ? `📄 Pages ${data.source_page.join(', ')}`
+      : '📄 No specific pages';
+
+    row.innerHTML = `
+      <div class="avatar bot">🤖</div>
+      <div class="bubble-col">
+        <div class="bubble"></div>
+        <div class="meta-row">
+          <span class="chip">${gaugeSvg(data.confidence_score)} ${Math.round((data.confidence_score||0)*100)}%</span>
+          <span class="chip">${pagesText}</span>
+          <span class="chip">🔢 ${data.token_count} tok</span>
+          <span class="chip">⚡ ${(elapsedMs/1000).toFixed(1)}s</span>
+        </div>
+        <button class="copy-btn" type="button">📋 Copy answer</button>
+      </div>
+    `;
+    row.querySelector('.bubble').textContent = data.answer;
+    row.querySelector('.copy-btn').addEventListener('click', (e) => {
+      navigator.clipboard.writeText(data.answer).catch(() => {});
+      e.target.textContent = '✅ Copied';
+      setTimeout(() => { e.target.textContent = '📋 Copy answer'; }, 1500);
+    });
+    chatWindow.appendChild(row);
+    scrollToBottom();
+    updateStats(data, elapsedMs);
+  }
+
+  function addErrorMessage(text) {
+    const row = document.createElement('div');
+    row.className = 'msg-row bot';
+    row.innerHTML = `
+      <div class="avatar bot">⚠️</div>
+      <div class="bubble-col"><div class="bubble shake" style="border-color: rgba(255,106,106,0.4); color: #ffb3b3;"></div></div>
+    `;
+    row.querySelector('.bubble').textContent = text;
+    chatWindow.appendChild(row);
+    scrollToBottom();
+  }
+
+  async function sendQuestion(question) {
+    if (!question.trim() || isLoading) return;
+
+    isLoading = true;
+    sendBtn.disabled = true;
+    input.value = '';
+
+    addUserMessage(question);
+    const stopTimer = addPipelineIndicator();
+    const startedAt = performance.now();
+
+    try {
+      const res = await fetch('/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question })
+      });
+
+      const elapsedMs = performance.now() - startedAt;
+      removePipelineIndicator(stopTimer);
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.detail || `Request failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      addBotMessage(data, elapsedMs);
+    } catch (err) {
+      removePipelineIndicator(stopTimer);
+      addErrorMessage('Something went wrong: ' + err.message);
+    } finally {
+      isLoading = false;
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  sendBtn.addEventListener('click', () => sendQuestion(input.value));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendQuestion(input.value);
+  });
+
+  document.querySelectorAll('.suggestion-chip').forEach(chip => {
+    chip.addEventListener('click', () => sendQuestion(chip.dataset.q));
+  });
+
+  clearBtn.addEventListener('click', () => {
+    chatWindow.innerHTML = '';
+    chatWindow.appendChild(emptyState);
+    emptyState.style.display = 'flex';
+    session = { count: 0, confSum: 0, tokens: 0 };
+    statCount.textContent = '0';
+    statConf.textContent = '–';
+    statTime.textContent = '–';
+    statTokens.textContent = '0';
+  });
+
+  input.focus();
+})();
+</script>
+
+</body>
+</html>
